@@ -67,8 +67,7 @@ The tool will create two additions directories inside the proyect directory:
 #### Other functionality
 * **'c'**: Clear all the points of the current mask
 * **'d'**: Delete last point
-* **'m'**: Show or hide current mask from visualization
-* **'M'**: Show or hide all the masks from visualization
+* **'m'**: Show or hide all the masks from visualization
 * **'p'**: Show or hide points from visualization
 * **CURSOR_LEFT**: Move to the previous object and show its segmentation points (tested only in Windows).
  * **CURSOR_RIGHT**: Move to the next object and show its segmentation points (tested only in Windows).
