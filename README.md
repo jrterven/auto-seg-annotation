@@ -72,3 +72,6 @@ The tool will create two additions directories inside the proyect directory:
 * **CURSOR_LEFT**: Move to the previous object and show its segmentation points (tested only in Windows).
  * **CURSOR_RIGHT**: Move to the next object and show its segmentation points (tested only in Windows).
 
+
+## Video Tutorials
+Tutorial en Español: https://youtu.be/E9hIp2VbSGw
