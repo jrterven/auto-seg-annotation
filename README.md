@@ -1,9 +1,9 @@
 # Auto-Seg-Annotation
 
-Author: Juan Terven
-Date: August 2023
-License: MIT
-Automatic Segmentation Annotation tool based on SAM (Segment Anything Model)
+Author: Juan Terven  
+Date: August 2023  
+License: MIT  
+Automatic Segmentation Annotation tool based on SAM (Segment Anything Model)  
 
 ## Description
 Auto-Seg-Annotation is a tool designed to streamline the process of segmentation annotation. Leveraging the power of the SAM (Segment Anything Model), it provides an intuitive interface and efficient tools for annotating images.
