@@ -40,7 +40,6 @@ def click_event(event, x, y, flags, param):
                 print(f"Removed point at ({px}, {py})")
                 break
         else:
-            print(f'x = {x}, y = {y}')  # Print the cursor position
             cv2.circle(IMG_CANVAS, (x, y), 3, COLOR_OBJ, -1)
             cv2.imshow('Image', IMG_CANVAS)
             SCALED_SAM_POINTS.append([x, y])
@@ -48,7 +47,6 @@ def click_event(event, x, y, flags, param):
         print(f"{len(SCALED_SAM_POINTS)} points:", SCALED_SAM_POINTS)
 
     if event == cv2.EVENT_RBUTTONDOWN:  # Check if right mouse button was clicked
-        print(f'x = {x}, y = {y}')  # Print the cursor position
         cv2.circle(IMG_CANVAS, (x, y), 3, COLOR_BG, -1)
         cv2.imshow('Image', IMG_CANVAS)
         SCALED_SAM_POINTS.append([x, y])
@@ -164,13 +162,10 @@ def main(main_args):
         IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, img_resized, size_scale)
         cv2.imshow('Image', IMG_CANVAS)
 
-        # TODO:
-        # Error when deleting all the points and moving through the images
-        
         # Loop until we change image
         while True:
             IMG_CANVAS = np.copy(img_resized)
-            if len(SCALED_SAM_POINTS) != old_num_points:
+            if len(SCALED_SAM_POINTS) != old_num_points and len(SCALED_SAM_POINTS) > 0:
                 if SCALED_SAM_POINTS:
                     mask_u8 = fn.predict_masks(predictor, SCALED_SAM_POINTS,
                                             np.array(SAM_LABELS), size_scale, fast_mode)
@@ -186,7 +181,6 @@ def main(main_args):
 
             old_num_points = len(SCALED_SAM_POINTS)
             key = cv2.waitKeyEx(100)
-            #print(key)
 
             # Press "q" or ESC to exit program,
             if key == ord("q") or key == ord("Q") or key == 27:
@@ -258,12 +252,20 @@ def main(main_args):
                 cv2.imshow('Image', IMG_CANVAS)
             # Press enter to save the current mask
             elif key == 13:
-                points = fn.rescale_points(SCALED_SAM_POINTS, size_scale)
-                masks_dict = {"sam_points": points, "sam_labels": SAM_LABELS, "mask": mask_u8}
-                if current_mask_index >= len(MASKS_DATA):
-                    MASKS_DATA.append(masks_dict)
+                if len(SCALED_SAM_POINTS) > 0:
+                    points = fn.rescale_points(SCALED_SAM_POINTS, size_scale)
+                    masks_dict = {"sam_points": points, "sam_labels": SAM_LABELS, "mask": mask_u8}
+                    if current_mask_index >= len(MASKS_DATA):
+                        MASKS_DATA.append(masks_dict)
+                    else:
+                        MASKS_DATA[current_mask_index] = masks_dict
+                # In case no points, 
+                # e.g. the user pressed enter with no points
+                # e.g. the user deleted all the points and press enter
                 else:
-                    MASKS_DATA[current_mask_index] = masks_dict
+                    if current_mask_index < len(MASKS_DATA):
+                        del MASKS_DATA[current_mask_index]
+                
                 current_mask_index = len(MASKS_DATA)
 
                 SCALED_SAM_POINTS = []
@@ -294,12 +296,10 @@ def main(main_args):
                 print(f"Mask Index = {current_mask_index}.")
             # Press "+" to increase image size
             elif key == 43:
-                #SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                 orig_points = [[int(p[0] / size_scale), int(p[1] / size_scale)] for p in SCALED_SAM_POINTS]
                 size_scale += 0.25
             # Press "-" to decrease image size
             elif key == 45:
-                #SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                 orig_points = [[int(p[0] / size_scale), int(p[1] / size_scale)] for p in SCALED_SAM_POINTS]
                 size_scale -= 0.25
                 if size_scale <= 0.25:

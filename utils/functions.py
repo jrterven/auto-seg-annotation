@@ -53,7 +53,6 @@ def save_masks(masks_data, out_path, img_name):
 
     if len(masks_data) > 0:
         first_mask = masks_data[0]["mask"]
-        print("First mask shape:", first_mask.shape)
         masks_canvas = np.zeros((first_mask.shape[:2]), dtype=np.uint8)
 
         # loop through all the masks and draw them in a single canvas using the idx as value
@@ -72,6 +71,7 @@ def save_masks(masks_data, out_path, img_name):
 def predict_masks(predictor, points, labels, scale, fast):
     points_arr = np.array(points) / scale
     points_arr = points_arr.astype(int)
+
     if fast:
         mask = predictor.point_prompt(points=points_arr,
                                        pointlabel=np.array(labels))
@@ -101,7 +101,9 @@ def load_points_and_labels(dir_path, img_name, predictor, fast, scale):
         points = dic["sam_points"]
         labels = dic["sam_labels"]
 
-        mask_u8 = predict_masks(predictor, points, labels, scale, fast)
+        mask_u8 = []
+        if len(points) > 0:
+            mask_u8 = predict_masks(predictor, points, labels, scale, fast)
         dic["mask"] = mask_u8
     return data
 
@@ -134,9 +136,6 @@ def delete_last_point(points, labels):
     return points, labels
 
 def load_mask_data(masks_data, index, scale):
-    print(f"Masks_data size inside load_mask_data: {len(masks_data)}")
-    print(f"Index: {index}")
-
     if len(masks_data) <= index:
         points = []
         labels = []
@@ -158,8 +157,6 @@ def display_all_masks(masks_data, current_index, current_mask, image, scale):
         for idx, masks_datum in enumerate(masks_data):
             if idx == current_index:
                 continue
-
-            #print(f"idx: {idx}")
             mask_u8 = masks_datum["mask"]
             if mask_u8 is not None:
                 masks_canvas = np.bitwise_or(masks_canvas, mask_u8)
