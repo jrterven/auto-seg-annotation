@@ -29,6 +29,8 @@ except:
 
 # Function to handle mouse events like left click
 def click_event(event, x, y, flags, param):
+    global SCALED_SAM_POINTS, SAM_LABELS, IMG_CANVAS
+
     if event == cv2.EVENT_LBUTTONDOWN:  # Check if left mouse button was clicked
         for i, (px, py) in enumerate(SCALED_SAM_POINTS):
             distance = ((px - x) ** 2 + (py - y) ** 2) ** 0.5
@@ -158,21 +160,20 @@ def main(main_args):
         if len(MASKS_DATA) > 0:
             SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
 
-        #SCALED_SAM_POINTS = []
-        #SAM_LABELS = []
         old_num_points = 0
         IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, img_resized, size_scale)
         cv2.imshow('Image', IMG_CANVAS)
 
         # TODO:
         # Error when deleting all the points and moving through the images
+        
+        # Loop until we change image
         while True:
+            IMG_CANVAS = np.copy(img_resized)
             if len(SCALED_SAM_POINTS) != old_num_points:
                 if SCALED_SAM_POINTS:
-                    mask = fn.predict_masks(predictor, np.array(SCALED_SAM_POINTS) / size_scale,
+                    mask_u8 = fn.predict_masks(predictor, SCALED_SAM_POINTS,
                                             np.array(SAM_LABELS), size_scale, fast_mode)
-                    mask = np.squeeze(mask) # remove leading dimension
-                    mask_u8 = mask.astype(np.uint8) * 255
                 else:
                     mask_u8 = np.zeros((h_orig, w_orig), dtype=np.uint8)
                 IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, img_resized, size_scale)
@@ -229,7 +230,6 @@ def main(main_args):
             # Press "m" to show or hide current mask from visualization
             elif key == ord('m'):
                 show_mask = not show_mask
-
                 IMG_CANVAS = np.copy(img_resized)
                 if show_mask:
                     IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, IMG_CANVAS, size_scale)
@@ -294,12 +294,12 @@ def main(main_args):
                 print(f"Mask Index = {current_mask_index}.")
             # Press "+" to increase image size
             elif key == 43:
-                SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
+                #SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                 orig_points = [[int(p[0] / size_scale), int(p[1] / size_scale)] for p in SCALED_SAM_POINTS]
                 size_scale += 0.25
             # Press "-" to decrease image size
             elif key == 45:
-                SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
+                #SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                 orig_points = [[int(p[0] / size_scale), int(p[1] / size_scale)] for p in SCALED_SAM_POINTS]
                 size_scale -= 0.25
                 if size_scale <= 0.25:

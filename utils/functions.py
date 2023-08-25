@@ -81,8 +81,11 @@ def predict_masks(predictor, points, labels, scale, fast):
             point_labels=np.array(labels),
             multimask_output=False,
         )
-    print("Mask:", type(mask), mask.shape)
-    return mask
+
+    mask = np.squeeze(mask)  # remove leading dimension
+    mask_u8 = mask.astype(np.uint8) * 255
+
+    return mask_u8
     
 def load_points_and_labels(dir_path, img_name, predictor, fast, scale):
     # Change extension to json
@@ -98,9 +101,7 @@ def load_points_and_labels(dir_path, img_name, predictor, fast, scale):
         points = dic["sam_points"]
         labels = dic["sam_labels"]
 
-        mask = predict_masks(predictor, points, labels, scale, fast)
-        mask = np.squeeze(mask)  # remove leading dimension
-        mask_u8 = mask.astype(np.uint8) * 255
+        mask_u8 = predict_masks(predictor, points, labels, scale, fast)
         dic["mask"] = mask_u8
     return data
 
