@@ -165,7 +165,7 @@ def main(main_args):
         # Loop until we change image
         while True:
             IMG_CANVAS = np.copy(img_resized)
-            if len(SCALED_SAM_POINTS) != old_num_points and len(SCALED_SAM_POINTS) > 0:
+            if len(SCALED_SAM_POINTS) != old_num_points:
                 if SCALED_SAM_POINTS:
                     mask_u8 = fn.predict_masks(predictor, SCALED_SAM_POINTS,
                                             np.array(SAM_LABELS), size_scale, fast_mode)
