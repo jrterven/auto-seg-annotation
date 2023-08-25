@@ -50,6 +50,12 @@ Run the tool as:
  python main <the path to the project directory>
 ```
 
+In the case of not having a GPU, run the code with the flag --fast to use a lighter model.  
+For example:
+```bash
+ python main <the path to the project directory> --fast
+```
+
 The tool will create two additions directories inside the proyect directory:
 * **masks**: this directory will contain the resulting segmentation masks.
 * **embeddings**: this directory will contain the SAM embeddings so that once the embedding is computed for an image, it will load the embedding the next time instead of creating the embedding.
