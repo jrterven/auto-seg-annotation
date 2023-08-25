@@ -68,7 +68,23 @@ def save_masks(masks_data, out_path, img_name):
         cv2.imwrite(out_file, masks_canvas)
         print("Masks saved in file!")
 
-def load_points_and_labels(dir_path, img_name, predictor, scale):
+
+def predict_masks(predictor, points, labels, scale, fast):
+    points_arr = np.array(points) / scale
+    points_arr = points_arr.astype(int)
+    if fast:
+        mask = predictor.point_prompt(points=points_arr,
+                                       pointlabel=np.array(labels))
+    else:
+        mask, _, _ = predictor.predict(
+            point_coords=points_arr,
+            point_labels=np.array(labels),
+            multimask_output=False,
+        )
+    print("Mask:", type(mask), mask.shape)
+    return mask
+    
+def load_points_and_labels(dir_path, img_name, predictor, fast, scale):
     # Change extension to json
     filename = os.path.splitext(img_name)[0] + ".json"
     file_path = os.path.join(dir_path, filename)
@@ -82,11 +98,7 @@ def load_points_and_labels(dir_path, img_name, predictor, scale):
         points = dic["sam_points"]
         labels = dic["sam_labels"]
 
-        mask, scores, logits = predictor.predict(
-            point_coords=np.array(points) / scale,
-            point_labels=np.array(labels),
-            multimask_output=False,
-        )
+        mask = predict_masks(predictor, points, labels, scale, fast)
         mask = np.squeeze(mask)  # remove leading dimension
         mask_u8 = mask.astype(np.uint8) * 255
         dic["mask"] = mask_u8

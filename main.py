@@ -7,6 +7,7 @@ License: MIT
 Contact: jrterven@hotmail.com
 """
 import os
+import argparse
 import numpy as np
 import sys
 import cv2
@@ -15,6 +16,8 @@ import torch
 import time
 from utils import functions as fn
 from constants import COLOR_OBJ, COLOR_BG
+from ultralytics import FastSAM
+from ultralytics.models.fastsam import FastSAMPrompt
 
 try:
     from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
@@ -53,18 +56,34 @@ def click_event(event, x, y, flags, param):
 
 
 
-def main():
+def main(main_args):
     global SCALED_SAM_POINTS, SAM_LABELS, IMG_CANVAS
 
+    project_directory = main_args["project_directory"]
+    fast_mode = main_args["fast_mode"]
+    checkpoint_name = main_args["checkpoint_name"]
+    checkpoint_path = main_args["checkpoint_path"]
+    model_type = main_args["model_type"]
+    device = main_args["device"]
+
+    images_path = os.path.join(project_directory, "images")
+    masks_path = os.path.join(project_directory, "masks")
+    emb_path = os.path.join(project_directory, "embeddings")
+
     # Load images
-    image_names = os.listdir(IMAGES_PATH)
+    image_names = os.listdir(images_path)
     num_images = len(image_names)
     print(f"Found {len(image_names)} images.")
 
-    # Loading SAM model
-    print("Loading SAM ...")
-    sam = sam_model_registry[MODEL_TYPE](checkpoint=CHECKPOINT_PATH).to(device=DEVICE)
-    predictor = SamPredictor(sam)
+    if fast_mode:
+        # Load FastSAM model
+        print("Loading FastSAM")    
+        fsam_model = FastSAM(checkpoint_path)
+    else:
+        # Loading SAM model
+        print("Loading SAM ...")
+        sam = sam_model_registry[model_type](checkpoint=checkpoint_path).to(device=device)
+        predictor = SamPredictor(sam)
 
     exit_flag = False
     img_idx = 0
@@ -76,7 +95,7 @@ def main():
     while True:
         current_mask_index = 0
         image_name = image_names[img_idx]
-        image_path = os.path.join(IMAGES_PATH, image_name)
+        image_path = os.path.join(images_path, image_name)
         img_orig = cv2.imread(image_path)
         h_orig, w_orig, _ = img_orig.shape
         print(f"Original Image: {h_orig}x{w_orig}")
@@ -94,25 +113,43 @@ def main():
         mask_u8 = np.zeros((h_orig, w_orig), dtype=np.uint8)  # Create an initial RGB image with zeros
         old_num_points = 0 # keep track if the number of points changed
 
-        print("Loading SAM embedding...")
-        got_embedding = fn.load_embedding(predictor, EMBEDDINGS_PATH, image_name, img_orig, DEVICE)
-        if not got_embedding:
-            print("Computing SAM embedding...")
+        if fast_mode:
+            # Run inference on an image
             start_time = time.time()
-            predictor.set_image(img_orig)
+            model_results = fsam_model(image_path, 
+                                        device=device,
+                                        retina_masks=True,
+                                        imgsz=1024,
+                                        conf=0.4,
+                                        iou=0.9)
             end_time = time.time()
-
             # Calculate elapsed time
             elapsed_time = end_time - start_time
             print("Elapsed time: ", elapsed_time)
 
-            # Save the embedding for next time
-            embedding = predictor.get_image_embedding()
-            fn.save_embedding(embedding, EMBEDDINGS_PATH, image_name)
+            predictor = FastSAMPrompt(image_path, model_results,
+                                           device=device)
+        else:
+            print("Loading SAM embedding...")
+            got_embedding = fn.load_embedding(predictor, emb_path, image_name, img_orig, device)
+            if not got_embedding:
+                print("Computing SAM embedding...")
+                start_time = time.time()
+                predictor.set_image(img_orig)
+                end_time = time.time()
+
+                # Calculate elapsed time
+                elapsed_time = end_time - start_time
+                print("Elapsed time: ", elapsed_time)
+
+                # Save the embedding for next time
+                embedding = predictor.get_image_embedding()
+                fn.save_embedding(embedding, emb_path, image_name)
 
         SCALED_SAM_POINTS = []
         SAM_LABELS = []
-        MASKS_DATA = fn.load_points_and_labels(EMBEDDINGS_PATH, image_name, predictor, 1.0)
+        MASKS_DATA = fn.load_points_and_labels(emb_path, image_name,
+                                               predictor, fast_mode, 1.0)
 
         current_mask_index = len(MASKS_DATA)
         print(f"Found {current_mask_index} masks in current image.")
@@ -127,19 +164,13 @@ def main():
         IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, img_resized, size_scale)
         cv2.imshow('Image', IMG_CANVAS)
 
-        
-
         # TODO:
-        # Error when saving the mask lines 332, 94
         # Error when deleting all the points and moving through the images
         while True:
             if len(SCALED_SAM_POINTS) != old_num_points:
                 if SCALED_SAM_POINTS:
-                    mask, scores, logits = predictor.predict(
-                        point_coords=np.array(SCALED_SAM_POINTS) / size_scale,
-                        point_labels=np.array(SAM_LABELS),
-                        multimask_output=False,
-                    )
+                    mask = fn.predict_masks(predictor, np.array(SCALED_SAM_POINTS) / size_scale,
+                                            np.array(SAM_LABELS), size_scale, fast_mode)
                     mask = np.squeeze(mask) # remove leading dimension
                     mask_u8 = mask.astype(np.uint8) * 255
                 else:
@@ -159,16 +190,16 @@ def main():
             # Press "q" or ESC to exit program,
             if key == ord("q") or key == ord("Q") or key == 27:
                 # Save current data
-                fn.save_masks(MASKS_DATA, MASKS_PATH, image_name)
-                fn.save_points_and_labels(MASKS_DATA, EMBEDDINGS_PATH, image_name)
+                fn.save_masks(MASKS_DATA, masks_path, image_name)
+                fn.save_points_and_labels(MASKS_DATA, emb_path, image_name)
 
                 exit_flag = True
                 break
             # Press "n" to go to the next image without saving the mask and points
             elif key == ord('n') or key == ord('N'):
                 # Save current data
-                fn.save_masks(MASKS_DATA, MASKS_PATH, image_name)
-                fn.save_points_and_labels(MASKS_DATA, EMBEDDINGS_PATH, image_name)
+                fn.save_masks(MASKS_DATA, masks_path, image_name)
+                fn.save_points_and_labels(MASKS_DATA, emb_path, image_name)
 
                 img_idx += 1
                 if img_idx >= num_images:
@@ -177,8 +208,8 @@ def main():
             # Press "b" to go to back to the previous image without saving the mask and points
             elif key == ord('b') or key == ord('B'):
                 # Save current data
-                fn.save_masks(MASKS_DATA, MASKS_PATH, image_name)
-                fn.save_points_and_labels(MASKS_DATA, EMBEDDINGS_PATH, image_name)
+                fn.save_masks(MASKS_DATA, masks_path, image_name)
+                fn.save_points_and_labels(MASKS_DATA, emb_path, image_name)
 
                 img_idx -= 1
                 if img_idx < 0:
@@ -190,8 +221,8 @@ def main():
                 SAM_LABELS = []
             # Press "s" to save mask and points
             elif key == ord('s') or key == ord('S'):
-                fn.save_masks(MASKS_DATA, MASKS_PATH, image_name)
-                fn.save_points_and_labels(MASKS_DATA, EMBEDDINGS_PATH, image_name)
+                fn.save_masks(MASKS_DATA, masks_path, image_name)
+                fn.save_points_and_labels(MASKS_DATA, emb_path, image_name)
             # Press "d" to delete the last point
             elif key == ord('d') or key == ord('D'):
                 SCALED_SAM_POINTS, SAM_LABELS = fn.delete_last_point(SCALED_SAM_POINTS, SAM_LABELS)
@@ -288,42 +319,55 @@ def main():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Please provide a path argument pointing to a directory containing a directory called images.")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Input arguments')
+    parser.add_argument('directory', type=str, help='Path to the project directory.')
+    parser.add_argument('--fast', action='store_true', help='Enable fast mode.')
+    
+    args = parser.parse_args()
+    project_directory = args.directory
+    fast_mode = args.fast
 
-    DATA_PATH = sys.argv[1]
+    # Check if model exist
+    if fast_mode:
+        model_name = "FastSAM"
+        checkpoint_name = "FastSAM-x.pt"
+        model_type = "YOLOv8x"
+        model_download_path = "https://drive.google.com/file/d/1m1sjY4ihXBU1fZXdQ-Xdj-mDltW-2Rqv/view"
+    else:
+        model_name = "SAM"
+        checkpoint_name = "sam_vit_h_4b8939.pth"
+        model_type = "vit_h"
+        model_download_path = "https://dl.fbaipublicfiles.com/segment_anything/"
+    
+    home = os.getcwd()
+    checkpoint_path = os.path.join(home, "models", checkpoint_name)
 
-    IMAGES_PATH = os.path.join(DATA_PATH, "images")
-    if not os.path.exists(IMAGES_PATH):
+    if os.path.exists(checkpoint_path):
+        print(f"{model_name} found in {checkpoint_path}!")
+    else:
+        print(f"{model_name} weights NOT FOUND in {checkpoint_path}")
+        print(f"Please download {checkpoint_name} from {model_download_path} "
+              "and put it inside the models directory")
+        sys.exit(0)
+
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(f"Using {device}")
+
+    # Check if images directory exists
+    images_path = os.path.join(project_directory, "images")
+    if not os.path.exists(images_path):
         print("The provided path must contain a directory called images.")
         sys.exit(1)
 
-    MASKS_PATH = os.path.join(DATA_PATH, "masks")
-    if not os.path.exists(MASKS_PATH):
-        os.makedirs(MASKS_PATH)
+    # Create output masks
+    masks_path = os.path.join(project_directory, "masks")
+    if not os.path.exists(masks_path):
+        os.makedirs(masks_path)
 
-    EMBEDDINGS_PATH = os.path.join(DATA_PATH, "embeddings")
-    if not os.path.exists(EMBEDDINGS_PATH):
-        os.makedirs(EMBEDDINGS_PATH)
-
-    MODEL_NAME = "sam_vit_h_4b8939.pth"
-    MODEL_TYPE = "vit_h"
-    HOME = os.getcwd()
-    CHECKPOINT_PATH = os.path.join(HOME, "models", MODEL_NAME)
-
-    if os.path.exists(CHECKPOINT_PATH):
-        print(f"SAM weights found in {CHECKPOINT_PATH}!")
-    else:
-        print(f"SAM weights NOT FOUND in {CHECKPOINT_PATH}")
-        print("Please download from https://dl.fbaipublicfiles.com/segment_anything/"
-              "sam_vit_h_4b8939.pth and put it inside the models directory")
-
-        sys.exit(0)
-
-    DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-    print(f"Using {DEVICE}")
+    # Create output embeddings
+    emb_path = os.path.join(project_directory, "embeddings")
+    if not os.path.exists(emb_path):
+        os.makedirs(emb_path)
 
     IMG = np.zeros((512, 512, 3), np.uint8)
     IMG_CANVAS = np.copy(IMG)
@@ -339,4 +383,11 @@ if __name__ == "__main__":
     SCALED_SCALED_SAM_POINTS = []
     SAM_LABELS = []
 
-    main()
+    main_args = {"project_directory": project_directory,
+                 "fast_mode": fast_mode,
+                 "checkpoint_name": checkpoint_name,
+                 "checkpoint_path": checkpoint_path,
+                 "model_type": model_type,
+                 "device": device
+                }
+    main(main_args)
