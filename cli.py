@@ -29,35 +29,35 @@ except:
 
 # Function to handle mouse events like left click
 def click_event(event, x, y, flags, param):
-    global SCALED_SAM_POINTS, SAM_LABELS, IMG_CANVAS
+    global SCALED_SAM_POINTS, SAM_VALUES, IMG_CANVAS
 
     if event == cv2.EVENT_LBUTTONDOWN:  # Check if left mouse button was clicked
         for i, (px, py) in enumerate(SCALED_SAM_POINTS):
             distance = ((px - x) ** 2 + (py - y) ** 2) ** 0.5
             if distance <= 3:
                 del SCALED_SAM_POINTS[i]
-                del SAM_LABELS[i]
+                del SAM_VALUES[i]
                 print(f"Removed point at ({px}, {py})")
                 break
         else:
             cv2.circle(IMG_CANVAS, (x, y), 3, COLOR_OBJ, -1)
             cv2.imshow('Image', IMG_CANVAS)
             SCALED_SAM_POINTS.append([x, y])
-            SAM_LABELS.append(1)
+            SAM_VALUES.append(1)
         print(f"{len(SCALED_SAM_POINTS)} points:", SCALED_SAM_POINTS)
 
     if event == cv2.EVENT_RBUTTONDOWN:  # Check if right mouse button was clicked
         cv2.circle(IMG_CANVAS, (x, y), 3, COLOR_BG, -1)
         cv2.imshow('Image', IMG_CANVAS)
         SCALED_SAM_POINTS.append([x, y])
-        SAM_LABELS.append(0)
+        SAM_VALUES.append(0)
 
         print(f"{len(SCALED_SAM_POINTS)} points:", SCALED_SAM_POINTS)
 
 
 
 def main(main_args):
-    global SCALED_SAM_POINTS, SAM_LABELS, IMG_CANVAS
+    global SCALED_SAM_POINTS, SAM_VALUES, IMG_CANVAS
 
     project_directory = main_args["project_directory"]
     fast_mode = main_args["fast_mode"]
@@ -147,7 +147,7 @@ def main(main_args):
                 fn.save_embedding(embedding, emb_path, image_name)
 
         SCALED_SAM_POINTS = []
-        SAM_LABELS = []
+        SAM_VALUES = []
         MASKS_DATA = fn.load_points_and_labels(emb_path, image_name,
                                                predictor, fast_mode, 1.0)
 
@@ -156,7 +156,7 @@ def main(main_args):
         print(f"Mask Index = {current_mask_index}.")
 
         if len(MASKS_DATA) > 0:
-            SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
+            SCALED_SAM_POINTS, SAM_VALUES = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
 
         old_num_points = 0
         IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, img_resized, size_scale)
@@ -168,11 +168,11 @@ def main(main_args):
             if len(SCALED_SAM_POINTS) != old_num_points:
                 if SCALED_SAM_POINTS:
                     mask_u8 = fn.predict_masks(predictor, SCALED_SAM_POINTS,
-                                            np.array(SAM_LABELS), size_scale, fast_mode)
+                                            np.array(SAM_VALUES), size_scale, fast_mode)
                 else:
                     mask_u8 = np.zeros((h_orig, w_orig), dtype=np.uint8)
                 IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, img_resized, size_scale)
-                fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_LABELS, COLOR_OBJ, COLOR_BG)
+                fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_VALUES, COLOR_OBJ, COLOR_BG)
                 cv2.imshow('Image', IMG_CANVAS)
 
             if  len(SCALED_SAM_POINTS) != old_num_points and len(SCALED_SAM_POINTS) == 0:
@@ -190,7 +190,7 @@ def main(main_args):
 
                 exit_flag = True
                 break
-            # Press "n" to go to the next image without saving the mask and points
+            # Press "n" to go to the next image saving the mask and points
             elif key == ord('n') or key == ord('N'):
                 # Save current data
                 fn.save_masks(MASKS_DATA, masks_path, image_name)
@@ -200,7 +200,7 @@ def main(main_args):
                 if img_idx >= num_images:
                     img_idx = num_images - 1
                 break
-            # Press "b" to go to back to the previous image without saving the mask and points
+            # Press "b" to go to back to the previous image saving the mask and points
             elif key == ord('b') or key == ord('B'):
                 # Save current data
                 fn.save_masks(MASKS_DATA, masks_path, image_name)
@@ -213,14 +213,14 @@ def main(main_args):
             # Press "c" to clear all the points
             elif key == ord('c') or key == ord('C'):
                 SCALED_SAM_POINTS = []
-                SAM_LABELS = []
+                SAM_VALUES = []
             # Press "s" to save mask and points
             elif key == ord('s') or key == ord('S'):
                 fn.save_masks(MASKS_DATA, masks_path, image_name)
                 fn.save_points_and_labels(MASKS_DATA, emb_path, image_name)
             # Press "d" to delete the last point
             elif key == ord('d') or key == ord('D'):
-                SCALED_SAM_POINTS, SAM_LABELS = fn.delete_last_point(SCALED_SAM_POINTS, SAM_LABELS)
+                SCALED_SAM_POINTS, SAM_VALUES = fn.delete_last_point(SCALED_SAM_POINTS, SAM_VALUES)
             # Press "m" to show or hide current mask from visualization
             elif key == ord('m'):
                 show_mask = not show_mask
@@ -228,7 +228,7 @@ def main(main_args):
                 if show_mask:
                     IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, IMG_CANVAS, size_scale)
                 if show_points:
-                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_LABELS, COLOR_OBJ, COLOR_BG)
+                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_VALUES, COLOR_OBJ, COLOR_BG)
                 cv2.imshow('Image', IMG_CANVAS)
             # Press "M" to show or hide all the masks from visualization
             elif key == ord('M'):
@@ -238,7 +238,7 @@ def main(main_args):
                 if show_mask:
                     IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, IMG_CANVAS, size_scale)
                 if show_points:
-                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_LABELS, COLOR_OBJ, COLOR_BG)
+                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_VALUES, COLOR_OBJ, COLOR_BG)
                 cv2.imshow('Image', IMG_CANVAS)
             # Press "p" to remove points from visualization
             elif key == ord('p') or key == ord('P'):
@@ -248,13 +248,13 @@ def main(main_args):
                 if show_mask:
                     IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, IMG_CANVAS, size_scale)
                 if show_points:
-                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_LABELS, COLOR_OBJ, COLOR_BG)
+                    fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_VALUES, COLOR_OBJ, COLOR_BG)
                 cv2.imshow('Image', IMG_CANVAS)
             # Press enter to save the current mask
             elif key == 13:
                 if len(SCALED_SAM_POINTS) > 0:
                     points = fn.rescale_points(SCALED_SAM_POINTS, size_scale)
-                    masks_dict = {"sam_points": points, "sam_labels": SAM_LABELS, "mask": mask_u8}
+                    masks_dict = {"sam_points": points, "sam_labels": SAM_VALUES, "mask": mask_u8}
                     if current_mask_index >= len(MASKS_DATA):
                         MASKS_DATA.append(masks_dict)
                     else:
@@ -269,29 +269,29 @@ def main(main_args):
                 current_mask_index = len(MASKS_DATA)
 
                 SCALED_SAM_POINTS = []
-                SAM_LABELS = []
+                SAM_VALUES = []
                 old_num_points = 0
                 IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, img_resized, size_scale)
                 cv2.imshow('Image', IMG_CANVAS)
             # Load previous mask (cursor left)
-            elif key == 2424832:
+            elif key == 2424832: # 65361
                 # only if there is data
                 if len(MASKS_DATA) > 0:
                     current_mask_index -= 1
                     if current_mask_index < 0:
                         current_mask_index = 0
-                    SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
+                    SCALED_SAM_POINTS, SAM_VALUES = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                     old_num_points = 0
                 print(f"Mask Index = {current_mask_index}.")
             # Load next mask (cursor right)
-            elif key == 2555904:
+            elif key == 2555904: # 65363
                 # only if there is data
                 if len(MASKS_DATA) > 0:
                     current_mask_index += 1
                     if current_mask_index  >= len(MASKS_DATA):
                         current_mask_index = len(MASKS_DATA) - 1
 
-                    SCALED_SAM_POINTS, SAM_LABELS = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
+                    SCALED_SAM_POINTS, SAM_VALUES = fn.load_mask_data(MASKS_DATA, current_mask_index, size_scale)
                     old_num_points = 0
                 print(f"Mask Index = {current_mask_index}.")
             # Press "+" to increase image size
@@ -312,7 +312,7 @@ def main(main_args):
                 print(f"Vis Image: {h_canv}x{w_canv}")
                 IMG_CANVAS = fn.display_all_masks(MASKS_DATA, current_mask_index, mask_u8, IMG_CANVAS, size_scale)
                 SCALED_SAM_POINTS = [[int(p[0]*size_scale), int(p[1]*size_scale)] for p in orig_points]
-                fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_LABELS, COLOR_OBJ, COLOR_BG)
+                fn.draw_points(IMG_CANVAS, SCALED_SAM_POINTS, SAM_VALUES, COLOR_OBJ, COLOR_BG)
                 cv2.imshow('Image', IMG_CANVAS)
         if exit_flag:
             break
@@ -320,20 +320,24 @@ def main(main_args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Input arguments')
-    parser.add_argument('directory', type=str, help='Path to the project directory.')
+    parser.add_argument('directory', type=str, help='Path to the project directory.', default="/datasets2/Dropbox/Projects/auto-seg-annotation/seg_sample_project")
     parser.add_argument('--fast', action='store_true', help='Enable fast mode.')
     
     args = parser.parse_args()
     project_directory = args.directory
     fast_mode = args.fast
 
+    print(f"Project Directory {project_directory}")
+
     # Check if model exist
     if fast_mode:
+        print("Using Fast SAM")
         model_name = "FastSAM"
         checkpoint_name = "FastSAM-x.pt"
         model_type = "YOLOv8x"
         model_download_path = "https://drive.google.com/file/d/1m1sjY4ihXBU1fZXdQ-Xdj-mDltW-2Rqv/view"
     else:
+        print("Using SAM")
         model_name = "SAM"
         checkpoint_name = "sam_vit_h_4b8939.pth"
         model_type = "vit_h"
@@ -381,7 +385,7 @@ if __name__ == "__main__":
     #]
 
     SCALED_SCALED_SAM_POINTS = []
-    SAM_LABELS = []
+    SAM_VALUES = []
 
     main_args = {"project_directory": project_directory,
                  "fast_mode": fast_mode,

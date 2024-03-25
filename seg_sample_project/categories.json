@@ -1,0 +1,18 @@
+[
+    {
+        "id": 0,
+        "name": "papa",
+        "supercategory": "vegetales"
+    },
+    {
+        "id": 1,
+        "name": "zanahoria",
+        "supercategory": "vegetales"
+    },
+    {
+        "id": 2,
+        "name": "melon de invierno",
+        "supercategory": "vegetales"
+    }
+]
+

@@ -64,8 +64,8 @@ The tool will create two additions directories inside the proyect directory:
 #### Basic functionality
 * **'+'**: Zoom in the image
 * **'-'**: Zoom out the image
-* **'n'**: Move to next image (do not save changes)
-* **'b'**: Move to previous image (do not save changes)
+* **'n'**: Move to next image and save changes
+* **'b'**: Move to previous image and save changes
 * **enter**: Save current mask information and allow annotate another mask in the same image.
 * **'s'**:  Save all the masks, embeddings, and points on disk for the current image.
 * **'q'** or **ESC**: exit
