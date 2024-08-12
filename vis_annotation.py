@@ -2,6 +2,7 @@ import json
 import cv2
 import numpy as np
 import os
+import sys
 
 def load_coco_annotations(annotations_path, images_dir):
     with open(annotations_path, 'r') as file:
@@ -34,29 +35,29 @@ def load_coco_annotations(annotations_path, images_dir):
         # Draw all annotations for this image
         for annotation in annotations_by_image[image_id]:
             annotation_id = annotation["id"]
-            # Assuming an extra level of nesting, iterate through each set of polygons
-            for polygons in annotation['segmentation']:
-                for polygon in polygons:  # Now iterating over the actual polygons
-                    if not isinstance(polygon, list):
-                        print(f"Segmentation format error for image ID {image_id}. Is not a list. Skipping...")
-                        continue
+            for polygon in annotation['segmentation']:  # Now iterating over the actual polygons
+                if not isinstance(polygon, list):
+                    print(f"Segmentation format error for image ID {image_id}. Is not a list. Skipping...")
+                    continue
 
-                    try:
-                        # Reshape polygon to a 2D array where each row is a point
-                        poly = np.array(polygon).reshape((-1, 2))
-                        cv2.polylines(image, [poly.astype(np.int32)], isClosed=True, color=np.random.randint(0, 256, size=3).tolist(), thickness=2)
-                        
-                        # Extract bounding box from polygon
-                        x, y, w, h = cv2.boundingRect(poly.astype(np.int32))
-                        cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                        
-                    except Exception as e:
-                        print(f"Error processing segmentation for image ID {image_id}, ann ID {annotation_id}: {e}")
-                        continue
+                try:
+                    # Reshape polygon to a 2D array where each row is a point
+                    poly = np.array(polygon).reshape((-1, 2))
+                    cv2.polylines(image, [poly.astype(np.int32)], isClosed=True, color=np.random.randint(0, 256, size=3).tolist(), thickness=2)
+                    
+                    # Extract bounding box from polygon
+                    #x, y, w, h = cv2.boundingRect(poly.astype(np.int32))
+                    #cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    
+                except Exception as e:
+                    print(f"Error processing segmentation for image ID {image_id}, ann ID {annotation_id}: {e}")
+                    continue
 
         # Display the image with all annotations
         cv2.imshow('Image with Masks', image)
-        cv2.waitKey(0)
+        key = cv2.waitKey(0)
+        if key == ord('q'):
+            break
     cv2.destroyAllWindows()
 
 
@@ -64,6 +65,6 @@ def load_coco_annotations(annotations_path, images_dir):
 #annotations_path = "seg_sample_project/annotations.json"
 #images_dir = "seg_sample_project/images"
 
-annotations_path = "seg_sample_project/annotations.json"
-images_dir = "seg_sample_project/images"
+annotations_path = "/datasets2/Dropbox/AiFi_work/Hotdog/ann_project/auto_ann_project_smooth/annotations.json"
+images_dir = "/datasets2/Dropbox/AiFi_work/Hotdog/ann_project/auto_ann_project_smooth/images"
 load_coco_annotations(annotations_path, images_dir)

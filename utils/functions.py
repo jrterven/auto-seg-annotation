@@ -154,6 +154,27 @@ def get_next_id(list_of_dicts):
     max_id = max(d['id'] for d in list_of_dicts)
     return max_id + 1
 
+def delete_coco_annotation(annotations, image_name):
+    print("ANNOTATIONS")
+    print(annotations)
+    print("\n")
+    # Get the image id
+    image_id = get_coco_image_id(annotations["images"], image_name)
+    print(f"image_id: {image_id}")
+
+    # If the image is not in the annotations
+    if not image_id:
+        return None
+    else:
+        # Attempt to find the annotation by ID
+        for index, annotation in enumerate(annotations["annotations"]):
+            if annotation["image_id"] == image_id:
+                # Found the annotation, update it
+                del annotations["annotations"][index]
+                break
+
+        return f'Annotation for image {image_name} Updated'
+
 
 def update_or_add_annotation(annotations, new_annotation):
     """
@@ -235,7 +256,7 @@ def create_empty_coco(out_path):
     return json_dict
     
 
-def mask_to_coco_data_single_object(mask):
+def mask_to_coco_data_single_object(mask, epsilon_factor=0.01):
     _, binary_mask = cv2.threshold(mask, 0, 255, cv2.THRESH_BINARY)
 
     # Find contours and hierarchy
@@ -250,22 +271,28 @@ def mask_to_coco_data_single_object(mask):
         for i, contour in enumerate(contours):
             # Ensure we are only dealing with parent contours
             if hierarchy[0, i, 3] == -1:
-                # Flatten the contour and add it to the segmentation
-                ext_contour = contour.flatten().tolist()
+                # Smooth the contour
+                epsilon = epsilon_factor * cv2.arcLength(contour, True)
+                smoothed_contour = cv2.approxPolyDP(contour, epsilon, True)
+                ext_contour = smoothed_contour.flatten().tolist()
                 segmentation.append(ext_contour)
 
                 # Check for child contours (holes)
                 child = hierarchy[0, i, 2]
                 while child != -1:
-                    # Flatten the child contour and append it after the external contour
-                    hole_contour = contours[child].flatten().tolist()
+                    # Smooth the child contour
+                    epsilon = epsilon_factor * cv2.arcLength(contours[child], True)
+                    smoothed_hole_contour = cv2.approxPolyDP(contours[child], epsilon, True)
+                    hole_contour = smoothed_hole_contour.flatten().tolist()
                     segmentation.append(hole_contour)
                     # Move to the next child
                     child = hierarchy[0, child, 0]
     else:
         # Fallback if no hierarchy information is present
         for contour in contours:
-            flat_contour = contour.flatten().tolist()
+            epsilon = epsilon_factor * cv2.arcLength(contour, True)
+            smoothed_contour = cv2.approxPolyDP(contour, epsilon, True)
+            flat_contour = smoothed_contour.flatten().tolist()
             segmentation.append(flat_contour)
 
     # Assuming the first contour is the external one for calculating area and bbox
@@ -274,7 +301,7 @@ def mask_to_coco_data_single_object(mask):
     bbox = [x, y, w, h]
 
     coco_data = {
-        "segmentation": [segmentation],  # Nested list to follow COCO's format
+        "segmentation": segmentation,  
         "area": float(area),
         "bbox": bbox
     }
@@ -292,6 +319,10 @@ def load_annotations(annotations_file_path):
 
 def save_coco_annotation(coco_annotations, image_name, masks_data, out_path):
     
+    if not masks_data:
+        ann_action = delete_coco_annotation(coco_annotations, image_name)
+        print(ann_action)
+
     for idx, mask_datum in enumerate(masks_data):
         # every mask datum contains
         #{"sam_points": SAM_POINTS, "sam_labels": SAM_VALUES,

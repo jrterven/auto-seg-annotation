@@ -59,6 +59,9 @@ def save_data():
     global MASKS_DATA, CANVAS, SAM_POINTS, SAM_VALUES
     global IMG_CANVAS, CURRENT_MASK_INDEX, CLEAN_IMG
 
+    print(MASKS_DATA)
+    print(" ")
+
     if len(SAM_POINTS) > 0:
         cat_id, cat_name = get_selected_category_name_and_id()
 
@@ -74,6 +77,7 @@ def save_data():
         if CURRENT_MASK_INDEX < len(MASKS_DATA):
             del MASKS_DATA[CURRENT_MASK_INDEX]
     
+    print(MASKS_DATA)
     CURRENT_MASK_INDEX = len(MASKS_DATA)
     SAM_POINTS = []
     SAM_VALUES = []
@@ -85,6 +89,10 @@ def save_data():
     fn.save_masks(MASKS_DATA, MASKS_PATH, IMAGE_NAME)
     fn.save_points_and_labels(MASKS_DATA, EMB_PATH, IMAGE_NAME)
     fn.save_coco_annotation(ANNOTATIONS, IMAGE_NAME, MASKS_DATA, OUT_COCO_PATH)
+
+    # Update the canvas with the bounding boxes and rotated bounding boxes
+    update_bboxes_visibility()
+    update_rbboxes_visibility()
 
 def clear_points():
     global SAM_POINTS, SAM_VALUES, CANVAS
@@ -215,6 +223,8 @@ def on_file_select(event):
         IMAGE_NAME = file_listbox.get(index)
         image_path = os.path.join(IMAGES_PATH, IMAGE_NAME)
 
+        update_status_text(f"\Loading image {IMAGE_NAME}", color="black")
+
         h, w, CLEAN_IMG = load_and_display_image(image_path, CANVAS)
         IMG_CANVAS = CLEAN_IMG.copy()
 
@@ -231,6 +241,10 @@ def on_file_select(event):
 
         IMG_CANVAS = fn.display_saved_masks(MASKS_DATA, CLEAN_IMG, 1.0)
         update_canvas_from_cv(CANVAS, IMG_CANVAS)
+
+        # Update the canvas with the bounding boxes and rotated bounding boxes
+        update_bboxes_visibility()
+        update_rbboxes_visibility()
     except IndexError as exc:
         print("Ignoring click out of files list")
 
@@ -295,6 +309,71 @@ def show_hide_points():
     else:
         points_button.config(text="Show Points")
 
+def show_hide_bboxes():
+    global bboxes_button, SHOW_BBOXES
+
+    SHOW_BBOXES = not SHOW_BBOXES
+    if SHOW_BBOXES:
+        bboxes_button.config(text="Hide Bboxes")
+    else:
+        bboxes_button.config(text="Show Bboxes")
+
+    update_bboxes_visibility()
+
+def generate_random_color():
+    return tuple(np.random.randint(0, 255, size=3).tolist())
+
+def show_hide_rbboxes():
+    global rbboxes_button, SHOW_RBBOXES
+
+    SHOW_RBBOXES = not SHOW_RBBOXES
+    if SHOW_RBBOXES:
+        rbboxes_button.config(text="Hide RBboxes")
+    else:
+        rbboxes_button.config(text="Show RBboxes")
+
+    update_rbboxes_visibility()
+
+# Add these two functions to update the canvas with the visibility changes
+def update_bboxes_visibility():
+    global IMG_CANVAS, MASKS_DATA, CLEAN_IMG, SHOW_BBOXES
+
+    IMG_CANVAS = CLEAN_IMG.copy()  # Reset the canvas before drawing
+
+    if SHOW_BBOXES:
+        for mask_data in MASKS_DATA:
+            mask = mask_data["mask"]
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            color = generate_random_color()  # Generate a random color for each mask
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(IMG_CANVAS, (x, y), (x + w, y + h), color, 2)
+    
+    update_canvas_from_cv(CANVAS, IMG_CANVAS)
+
+def update_rbboxes_visibility():
+    global IMG_CANVAS, MASKS_DATA, CLEAN_IMG, SHOW_RBBOXES
+
+    IMG_CANVAS = CLEAN_IMG.copy()  # Reset the canvas before drawing
+
+    if SHOW_RBBOXES:
+        for mask_data in MASKS_DATA:
+            mask = mask_data["mask"]
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            color = generate_random_color()  # Generate a random color for each mask
+            for contour in contours:
+                if len(contour) >= 5:  # Ensure there are enough points to compute a bounding box
+                    rect = cv2.minAreaRect(contour)
+                    box = cv2.boxPoints(rect)
+                    box = np.int0(box)
+                    cv2.drawContours(IMG_CANVAS, [box], 0, color, 2)
+                else:
+                    # Draw the regular contour if not enough points for a rotated box
+                    cv2.drawContours(IMG_CANVAS, [contour], 0, color, 2)
+
+    update_canvas_from_cv(CANVAS, IMG_CANVAS)
+
+
 def show_warning_to_overwrite_categories():
     response = messagebox.askyesno("Categories Mismatch!",
                                    "The Categories loaded are different from the categories in the annotations. Do you want to overwrite them?")
@@ -358,8 +437,10 @@ def on_category_combobox_select(event):
     class_id, class_name = get_selected_category_name_and_id()
     CANVAS.focus_set()
 
-def export_to_coco():
+
+def export_to_yolo():
     global MASKS_DATA, OUT_COCO_PATH, IMAGE_NAME
+
 
 def update_selected_item_colors():
     global file_listbox
@@ -426,6 +507,8 @@ if __name__ == "__main__":
 
     SHOW_MASKS = True
     SHOW_POINTS = True
+    SHOW_BBOXES = True
+    SHOW_RBBOXES = True
 
     CLEAN_IMG = np.zeros((512, 512, 3), np.uint8)
     IMG_CANVAS = CLEAN_IMG.copy()
@@ -537,6 +620,14 @@ if __name__ == "__main__":
                               command=show_hide_points, font=custom_font, anchor='w')
     points_button.pack(side=tk.LEFT)
 
+    bboxes_button = tk.Button(masks_and_points_sub_frame, text="Hide Bboxes",
+                          command=show_hide_bboxes, font=custom_font, anchor='w')
+    bboxes_button.pack(side=tk.LEFT, padx=(0, 5))
+
+    rbboxes_button = tk.Button(masks_and_points_sub_frame, text="Hide RBboxes",
+                            command=show_hide_rbboxes, font=custom_font, anchor='w')
+    rbboxes_button.pack(side=tk.LEFT)
+
     clear_and_delete_sub_frame = tk.Frame(right_frame)
     clear_and_delete_sub_frame.pack()
 
@@ -552,7 +643,7 @@ if __name__ == "__main__":
                             font=custom_font, anchor='w')
     save_button.pack(pady=5, anchor='w')
 
-    export_coco_button = tk.Button(right_frame, text="Export to COCO", command=export_to_coco,
+    export_coco_button = tk.Button(right_frame, text="Export to YOLO", command=export_to_yolo,
                             font=custom_font, anchor='w')
     export_coco_button.pack(pady=5, anchor='w')
 
