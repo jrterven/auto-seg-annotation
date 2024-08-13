@@ -1,10 +1,62 @@
 
 import os
+import sys
 import numpy as np
 import json
 import cv2
 import torch
+try:
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+except:
+    print("SAM is not installed. Please install with:")
+    print("pip install git+https://github.com/facebookresearch/segment-anything.git")
+    sys.exit(1)
+try:
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+except:
+    print("SAM2 is not installed. Please install with:")
+    print("pip install git+https://github.com/facebookresearch/segment-anything-2.git")
+    sys.exit(1)
 
+def load_model(model_name, device):
+    if model_name == "SAM":
+        checkpoint_name = "sam_vit_h_4b8939.pth"
+        model_type = "vit_h"
+        download_path = "https://dl.fbaipublicfiles.com/segment_anything/"
+    elif model_name == "SAM2":
+        checkpoint_name = "sam2_hiera_large.pt"
+        model_cfg = "sam2_hiera_l.yaml"
+        download_path = "https://github.com/facebookresearch/segment-anything-2"
+
+    home = os.getcwd()
+    checkpoint_path = os.path.join(home, "models", checkpoint_name)
+    if os.path.exists(checkpoint_path):
+        print(f"{model_name} found in {checkpoint_path}!")
+    else:
+        print(f"{model_name} weights NOT FOUND in {checkpoint_path}")
+        print(f"Please download {checkpoint_name} from {download_path} "
+              "and put it inside the models directory")
+        sys.exit(0)
+
+    print(f"Loading {model_name} ...")
+
+    if model_name == "SAM":
+        try:
+            sam = sam_model_registry["vit_h"](checkpoint=checkpoint_path).to(device=device)
+            PREDICTOR = SamPredictor(sam)
+        except Exception as e:
+            print(f"Error {e}")
+            sys.exit(1)
+    if model_name == "SAM2":
+        try:
+            sam = build_sam2(model_cfg, checkpoint_path, device=device)
+            PREDICTOR = SAM2ImagePredictor(sam)
+        except Exception as e:
+            print(f"Error {e}")
+            sys.exit(1)
+
+    print(f"{model_name} model successfully loaded!")
 
 def draw_points(img, points, labels, color_obj, color_bg):
     for point, label in zip(points, labels):
